@@ -1,15 +1,18 @@
 import { Router } from "express";
+import jwt from "jsonwebtoken";
+import { ZodError } from "zod";
+
 import Product from "../models/ProductSchema.js";
 import formidable from "formidable";
 
 import { zodSchema } from "../validations/ZobProductSchema.js";
-import { ZodError } from "zod";
+import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = Router();
 
 // NOTE: Get All products
 
-router.get("/", async (req, res) => {
+router.get("/", verifyToken, async (req, res) => {
   try {
     const {
       search,
@@ -37,6 +40,7 @@ router.get("/", async (req, res) => {
       .skip(limit * (page - 1))
       .limit(limit);
     res.json({
+      message: "Success fetched.",
       products,
       totalRecords,
       recordsReturned: products.length,
@@ -51,17 +55,23 @@ router.get("/", async (req, res) => {
       },
     });
   } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      res.status(403).send({ error: "Token expired please login again." });
+      return;
+    }
+    console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).json({ message: err.message });
   }
 });
 
 // NOTE: Get Product by id
-router.get("/:id", async (req, res) => {
+router.get("/:id", verifyToken, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(product);
   } catch (err) {
+    console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -115,12 +125,11 @@ router.post("/", async (req, res) => {
         res.status(201).json(newProduct);
       } catch (error) {
         if (error instanceof ZodError) {
-          console.log("error", error);
-          return res.status(400).json({
-            errors: error.issues,
-          });
+          res.status(403).send({ error: "error.", errors: error.issues });
+          return;
         }
-        res.status(400).json({ message: error.message });
+        console.log(`Error - ${req.method}:${req.path} - `, error);
+        res.status(500).send({ error: error.message });
       }
     });
   }
@@ -140,9 +149,12 @@ router.post("/bulk", async (req, res) => {
     const insertedProducts = await Product.insertMany(products);
     res.send({ message: "Products Inserted", insertedProducts });
   } catch (err) {
-    console.log("err message", err);
-
-    res.status(400).json({ message: "Error in Insert Please check data." });
+    if (err instanceof ZodError) {
+      res.status(403).send({ error: "error.", errors: err.issues });
+      return;
+    }
+    console.log(`Error - ${req.method}:${req.path} - `, err);
+    res.status(500).send({ error: err.message });
   }
 });
 
