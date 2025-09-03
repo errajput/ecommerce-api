@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { verifyJwt } from "../shared/utils.js";
 
 export const verifyToken = (req, res, next) => {
   try {
@@ -13,17 +14,18 @@ export const verifyToken = (req, res, next) => {
       return res.status(401).json({ message: "Invalid token format" });
     }
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-      if (err) {
-        return res.status(403).json({ message: "Invalid or expired token" });
-      }
+    const decoded = verifyJwt(token);
 
-      req.userId = decoded.id; // Store userId in request
-      next();
-    });
+    req.userId = decoded.id; // Store userId in request
+    next();
   } catch (err) {
+    if (
+      err instanceof jwt.TokenExpiredError ||
+      err instanceof jwt.JsonWebTokenError
+    ) {
+      return res.status(403).json({ message: "Invalid or expired token" });
+    }
     console.log(err);
-
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };

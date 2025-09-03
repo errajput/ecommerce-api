@@ -1,15 +1,11 @@
-import express from "express";
+import { Router } from "express";
 import Product from "../models/ProductSchema.js";
 import formidable from "formidable";
-import { validate } from "../middleware/validate.js";
-import {
-  productUpdateSchema,
-  zodSchema,
-  zodsSchema,
-} from "../models/ZobProductSchema.js";
+
+import { zodSchema } from "../validations/ZobProductSchema.js";
 import { ZodError } from "zod";
 
-const router = express.Router();
+const router = Router();
 
 // NOTE: Get All products
 
