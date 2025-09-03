@@ -9,7 +9,7 @@ const productSchema = new mongoose.Schema(
       minLength: [3, "Minimum length must have 3 characters"],
       maxLength: [100, "Maximum length must have 100 Characters"],
       match: [
-        /^[a-zA-Z0-9\s.()+]+$/,
+        /^[a-zA-Z0-9\s.()+-]+$/,
         "Name must not contain some special characters",
       ],
     },
@@ -25,6 +25,10 @@ const productSchema = new mongoose.Schema(
       required: [true, "Description is required"],
       minLength: [10, "Description must be at least 10 characters long"],
       maxLength: [500, "Description must be less than 500 characters"],
+      match: [
+        /^[a-zA-Z0-9\s.()+-]+$/,
+        "Name must not contain some special characters",
+      ],
     },
     brand: {
       type: String,
