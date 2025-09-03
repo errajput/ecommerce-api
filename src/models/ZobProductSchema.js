@@ -24,6 +24,7 @@ export const zodSchema = z.object({
   images: z.array(z.string()).optional(),
   stock: z.number().positive("Price must be greater than 0"),
 });
+export const zodsSchema = z.array(zodSchema);
 
 // Validation schema for Edit (PATCH) → all fields optional
 export const productUpdateSchema = zodSchema.partial();
