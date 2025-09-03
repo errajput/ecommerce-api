@@ -1,66 +1,61 @@
-import express from "express";
-import bcrypt from "bcrypt";
+import { Router } from "express";
+import { ZodError } from "zod";
 import User from "../models/UserSchema.js";
-import jwt from "jsonwebtoken";
+import { LoginSchema, RegisterSchema } from "../validations/authvalidation.js";
+import { generateJwt, hashPassword, verifyPassword } from "../shared/utils.js";
 
-const router = express.Router();
+const router = Router();
 
 // NOTE: For register
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const validatedData = RegisterSchema.parse(req.body);
+    const user = await UserModel.findOne({ email: validatedData.email });
 
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "Email already registered" });
+    if (user) {
+      res.status(400).send({ message: "Email already used." });
+      return;
     }
+    const { email, password, name } = validatedData;
+    const hashedPassword = await hashPassword(password);
+    const newUser = new User({ email, password: hashedPassword, name });
+    await newUser.save();
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Save new user
-    const user = new User({ name, email, password: hashedPassword });
-    await user.save();
-
-    res.status(201).json({ message: "User registered successfully" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.send({ message: "User Registered" });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).send({ error: "Error", errors: error.issues });
+      return;
+    }
+    console.log(`Error - ${req.method}:${req.path} - `, error);
+    res.status(500).send({ error: error.message });
   }
 });
 
 // NOTE: For login
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    //NOTE: Check if user exists
+    const validatedData = LoginSchema.parse(req.body);
+    const { email, password } = validatedData;
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: "Invalid email or password" });
+      res.status(400).send({ message: "Invalid Cred." });
+      return;
+    }
+    if (!(await verifyPassword(password, user.password))) {
+      res.status(400).send({ message: "Invalid Cred." });
+      return;
     }
 
-    //NOTE: Compare password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid email or password" });
+    const token = generateJwt({ email, id: user._id });
+    res.send({ message: "Login Successful.", data: { token } });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).send({ error: "Error", errors: error.issues });
+      return;
     }
-
-    //NOTE: Create JWT
-    const token = jwt.sign(
-      { id: user._id, email: user.email }, // payload
-      process.env.JWT_SECRET, // secret key
-      { expiresIn: "1h" } // token expiry
-    );
-
-    res.json({
-      message: "Login successful",
-      token,
-    });
-  } catch (err) {
-    console.log("getting error", err);
-
-    res.status(500).json({ message: err.message });
+    console.log(`Error - ${req.method}:${req.path} - `, error);
+    res.status(500).send({ error: error.message });
   }
 });
 
