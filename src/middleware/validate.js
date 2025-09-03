@@ -1,13 +1,21 @@
+import { ZodError } from "zod";
+
 export const validate = (schema) => (req, res, next) => {
   try {
-    req.body = schema.parse(req.body); // parse + validate
+    req.body = schema.parse(req.body);
     next();
   } catch (error) {
-    return res.status(400).json({
-      errors: error.errors.map((err) => ({
-        path: err.path.join("."),
-        message: err.message,
-      })),
+    if (error instanceof ZodError) {
+      console.log("error", error);
+      return res.status(400).json({
+        errors: error,
+      });
+    }
+
+    // fallback for other unexpected errors
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
     });
   }
 };
