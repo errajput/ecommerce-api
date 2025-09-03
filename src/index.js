@@ -11,8 +11,8 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-app.use("/product", productRoutes);
 app.use("/user", userRoutes);
+app.use("/products", productRoutes);
 app.use("/auth", authRoutes);
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
