@@ -2,7 +2,12 @@ import express from "express";
 import Product from "../models/ProductSchema.js";
 import formidable from "formidable";
 import { validate } from "../middleware/validate.js";
-import { productUpdateSchema, zodSchema } from "../models/ZobProductSchema.js";
+import {
+  productUpdateSchema,
+  zodSchema,
+  zodsSchema,
+} from "../models/ZobProductSchema.js";
+import { ZodError } from "zod";
 
 const router = express.Router();
 
@@ -72,36 +77,57 @@ const form = formidable({
   keepExtensions: true,
 });
 
-router.post("/", validate(zodSchema), async (req, res) => {
-  form.parse(req, async (err, fields, files) => {
-    if (err) return res.status(500).json({ error: "Image upload failed" });
+router.post("/", async (req, res) => {
+  if (req.headers["content-type"] === "application/json") {
+    console.log("POST Save Body", req.body);
+    req.body = zodSchema.parse(req.body);
 
-    try {
-      let images = [];
-      if (files.images) {
-        const fileArray = Array.isArray(files.images)
-          ? files.images
-          : [files.images];
-        images = fileArray.map((file) => `/uploads/${file.newFilename}`);
+    const insertProduct = await Product.insertOne(req.body);
+    res.send({ message: "Products Inserted", insertProduct });
+    res.send(req.body);
+  } else {
+    // const [] = form.parse(req)
+    form.parse(req, async (err, fields, files) => {
+      if (err) return res.status(500).json({ error: "Image upload failed" });
+
+      try {
+        let images = [];
+        if (files.images) {
+          const fileArray = Array.isArray(files.images)
+            ? files.images
+            : [files.images];
+          images = fileArray.map((file) => `/uploads/${file.newFilename}`);
+        }
+        const data = {
+          name: fields.name?.[0],
+          price: Number(fields.price?.[0] || 0),
+          description: fields.description?.[0],
+          brand: fields.brand?.[0],
+          category: fields.category?.[0],
+          status: fields.status?.[0] || "active",
+          stock: Number(fields.stock?.[0] || 0),
+        };
+
+        const validatedData = zodSchema.parse(data);
+
+        const newProduct = new Product({
+          ...validatedData,
+          images,
+        });
+
+        await newProduct.save();
+        res.status(201).json(newProduct);
+      } catch (error) {
+        if (error instanceof ZodError) {
+          console.log("error", error);
+          return res.status(400).json({
+            errors: error.issues,
+          });
+        }
+        res.status(400).json({ message: error.message });
       }
-
-      const newProduct = new Product({
-        name: fields.name?.[0],
-        price: Number(fields.price?.[0] || 0),
-        description: fields.description?.[0],
-        brand: fields.brand?.[0],
-        category: fields.category?.[0],
-        status: fields.status?.[0] || "active",
-        stock: Number(fields.stock?.[0] || 0),
-        images: fields.images?.[0],
-      });
-
-      await newProduct.save();
-      res.status(201).json(newProduct);
-    } catch (err) {
-      res.status(400).json({ message: err.message });
-    }
-  });
+    });
+  }
 });
 
 // NOTE: For bulk Products
@@ -118,18 +144,20 @@ router.post("/bulk", async (req, res) => {
     const insertedProducts = await Product.insertMany(products);
     res.send({ message: "Products Inserted", insertedProducts });
   } catch (err) {
+    console.log("err message", err);
+
     res.status(400).json({ message: "Error in Insert Please check data." });
   }
 });
 
 // NOTE: Update the product
-router.patch("/:id", validate(productUpdateSchema), async (req, res) => {
+router.patch("/:id", async (req, res) => {
   form.parse(req, async (err, fields, files) => {
     if (err) return res.status(500).json({ error: "Image upload failed" });
 
     try {
       const product = await Product.findById(req.params.id);
-      console.log("PATCH product ID:", req.params.id);
+      // console.log("PATCH product ID:", req.params.id);
       if (!product)
         return res.status(404).json({ message: "Product not found" });
 
@@ -145,6 +173,7 @@ router.patch("/:id", validate(productUpdateSchema), async (req, res) => {
         }
         newImages = fileArray.map((file) => `/uploads/${file.newFilename}`);
         // Update fields (if provided)
+
         product.name = fields.name?.[0] || product.name;
         product.price = fields.price?.[0]
           ? Number(fields.price[0])
@@ -156,12 +185,14 @@ router.patch("/:id", validate(productUpdateSchema), async (req, res) => {
         product.stock = fields.stock?.[0]
           ? Number(fields.stock[0])
           : product.stock;
-        product.images = fields.images?.[0] || newImages;
+        product.images = newImages;
 
         await product.save();
         res.json(product);
       }
     } catch (err) {
+      console.log("err message", err);
+
       res.status(400).json({ message: err.message });
     }
   });
