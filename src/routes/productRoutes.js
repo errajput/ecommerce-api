@@ -9,10 +9,10 @@ import { productUpdateSchema } from "../validations/ZobProductSchema.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = Router();
-app.use(verifyToken);
+
 // NOTE: Get All products
 
-router.get("/", async (req, res) => {
+router.get("/", verifyToken, async (req, res) => {
   try {
     const {
       search,
@@ -68,7 +68,7 @@ router.get("/", async (req, res) => {
 });
 
 // NOTE: Get Product by id
-router.get("/:id", async (req, res) => {
+router.get("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const product = await Product.findById({
@@ -90,7 +90,7 @@ const form = formidable({
   keepExtensions: true,
 });
 
-router.post("/", async (req, res) => {
+router.post("/", verifyToken, async (req, res) => {
   if (req.headers["content-type"] === "application/json") {
     try {
       const validatedData = productUpdateSchema.parse(req.body);
@@ -158,7 +158,7 @@ router.post("/", async (req, res) => {
 });
 
 // NOTE: For bulk Products
-router.post("/bulk", async (req, res) => {
+router.post("/bulk", verifyToken, async (req, res) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) {
@@ -188,7 +188,7 @@ router.post("/bulk", async (req, res) => {
 });
 
 // NOTE: Update the product
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", verifyToken, async (req, res) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     try {
       const userId = req.userId;
@@ -269,7 +269,7 @@ router.patch("/:id", async (req, res) => {
 });
 
 // NOTE: Delete The product
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const deleted = await Product.findByIdAndDelete({
