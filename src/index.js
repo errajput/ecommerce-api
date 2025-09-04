@@ -6,6 +6,7 @@ import path from "path";
 import productRoutes from "./routes/productRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import cartRoutes from "./routes/cartRoutes.js";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.get("/", (req, res) => res.send("Ok"));
 app.use("/user", userRoutes);
 app.use("/products", productRoutes);
 app.use("/auth", authRoutes);
+app.use("/cart", cartRoutes);
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
