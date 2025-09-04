@@ -12,8 +12,10 @@ import { ZodError } from "zod";
 
 const router = Router();
 
+router.use(verifyToken);
+
 // 1. Add product to cart
-router.post("/items", verifyToken, async (req, res) => {
+router.post("/items", async (req, res) => {
   try {
     const validatedData = AddToCartSchema.parse(req.body);
     let cart = await cartModel.findOne({ user: req.userId });
@@ -44,7 +46,7 @@ router.post("/items", verifyToken, async (req, res) => {
   }
 });
 // 2. Get cart products
-router.get("/", verifyToken, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     GetCartSchema.parse(req.query);
     const cart = await cartModel
@@ -64,7 +66,7 @@ router.get("/", verifyToken, async (req, res) => {
 });
 
 // 3. Update Quantity of product
-router.patch("/items/:itemId", verifyToken, async (req, res) => {
+router.patch("/items/:itemId", async (req, res) => {
   try {
     const validatedData = UpdateQuantitySchema.parse(req.body);
     const { itemId } = RemoveFromCartSchema.parse(req.params);
@@ -96,7 +98,7 @@ router.patch("/items/:itemId", verifyToken, async (req, res) => {
 });
 
 // 4. remove product from cart
-router.delete("/items/:itemId", verifyToken, async (req, res) => {
+router.delete("/items/:itemId", async (req, res) => {
   try {
     const { itemId } = RemoveFromCartSchema.parse(req.params);
     const cart = await cartModel.findOne({ user: req.userId });
@@ -116,9 +118,9 @@ router.delete("/items/:itemId", verifyToken, async (req, res) => {
 });
 
 // 5. Clear cart
-router.delete("/items", verifyToken, async (req, res) => {
+router.delete("/items", async (req, res) => {
   try {
-    ClearCartSchema.parse(req.body);
+    // ClearCartSchema.parse(req.body);
     const cart = await cartModel.findOne({ user: req.userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
