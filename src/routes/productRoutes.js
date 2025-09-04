@@ -5,7 +5,7 @@ import { ZodError } from "zod";
 import Product from "../models/ProductSchema.js";
 import formidable from "formidable";
 
-import { zodSchema } from "../validations/ZobProductSchema.js";
+import { productUpdateSchema } from "../validations/ZobProductSchema.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = Router();
@@ -27,7 +27,10 @@ router.get("/", verifyToken, async (req, res) => {
     const page = parseInt(pageNo) || 1;
     const limit = parseInt(pageSize) || 10;
 
+    const userId = req.userId;
+
     const filterQuery = {
+      createdBy: userId,
       ...(search ? { name: new RegExp(search, "i") } : {}),
       ...(filterBy && filterValue ? { [filterBy]: filterValue } : {}),
     };
@@ -67,7 +70,11 @@ router.get("/", verifyToken, async (req, res) => {
 // NOTE: Get Product by id
 router.get("/:id", verifyToken, async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const userId = req.userId;
+    const product = await Product.findById({
+      _id: req.params.id,
+      createdBy: userId,
+    });
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(product);
   } catch (err) {
@@ -83,16 +90,27 @@ const form = formidable({
   keepExtensions: true,
 });
 
-router.post("/", async (req, res) => {
+router.post("/", verifyToken, async (req, res) => {
   if (req.headers["content-type"] === "application/json") {
-    console.log("POST Save Body", req.body);
-    req.body = zodSchema.parse(req.body);
+    try {
+      const validatedData = productUpdateSchema.parse(req.body);
+      const userId = req.userId;
 
-    const insertProduct = await Product.insertOne(req.body);
-    res.send({ message: "Products Inserted", insertProduct });
-    res.send(req.body);
+      const insertProduct = await Product.insertOne({
+        ...validatedData,
+        createdBy: userId,
+      });
+      res.status(201).send({ message: "Products Inserted", insertProduct });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res
+          .status(400)
+          .json({ error: "Validation failed", issues: error.issues });
+      }
+      console.log(`Error - ${req.method}:${req.path} - `, error);
+      return res.status(500).json({ error: error.message });
+    }
   } else {
-    // const [] = form.parse(req)
     form.parse(req, async (err, fields, files) => {
       if (err) return res.status(500).json({ error: "Image upload failed" });
 
@@ -114,15 +132,19 @@ router.post("/", async (req, res) => {
           stock: Number(fields.stock?.[0] || 0),
         };
 
-        const validatedData = zodSchema.parse(data);
+        const validatedData = productUpdateSchema.parse(data);
 
         const newProduct = new Product({
           ...validatedData,
+          createdBy: req.userId,
           images,
         });
 
         await newProduct.save();
-        res.status(201).json(newProduct);
+        res.status(201).json({
+          message: "Product created successfully",
+          product: newProduct,
+        });
       } catch (error) {
         if (error instanceof ZodError) {
           res.status(403).send({ error: "error.", errors: error.issues });
@@ -136,7 +158,7 @@ router.post("/", async (req, res) => {
 });
 
 // NOTE: For bulk Products
-router.post("/bulk", async (req, res) => {
+router.post("/bulk", verifyToken, async (req, res) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) {
@@ -146,8 +168,15 @@ router.post("/bulk", async (req, res) => {
       return res.status(400).json({ message: "Invalid data." });
     }
 
-    const insertedProducts = await Product.insertMany(products);
-    res.send({ message: "Products Inserted", insertedProducts });
+    const validatedProducts = products.map((product) => {
+      return productUpdateSchema.parse({
+        ...product,
+        createdBy: req.userId,
+      });
+    });
+
+    const insertedProducts = await Product.insertMany(validatedProducts);
+    res.status(201).send({ message: "Products Inserted", insertedProducts });
   } catch (err) {
     if (err instanceof ZodError) {
       res.status(403).send({ error: "error.", errors: err.issues });
@@ -159,60 +188,98 @@ router.post("/bulk", async (req, res) => {
 });
 
 // NOTE: Update the product
-router.patch("/:id", async (req, res) => {
-  form.parse(req, async (err, fields, files) => {
-    if (err) return res.status(500).json({ error: "Image upload failed" });
-
+router.patch("/:id", verifyToken, async (req, res) => {
+  if (req.headers["content-type"]?.includes("application/json")) {
     try {
-      const product = await Product.findById(req.params.id);
-      // console.log("PATCH product ID:", req.params.id);
-      if (!product)
-        return res.status(404).json({ message: "Product not found" });
+      const userId = req.userId;
+      const validatedData = productUpdateSchema.parse(req.body);
+      const product = await Product.findOneAndUpdate(
+        { _id: req.params.id, createdBy: userId },
+        { $set: validatedData },
+        { new: true }
+      );
+      if (!product) {
+        return res.status(404).json({ message: "Product not found " });
+      }
 
-      // Handle new images if uploaded
-      let newImages = product.images;
-      if (files.images) {
-        let fileArray = [];
-
-        if (Array.isArray(files.images)) {
-          fileArray = files.images;
-        } else if (typeof files.images === "object") {
-          fileArray = [files.images];
+      res.json({ message: "Product updated successfully", data: product });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res
+          .status(400)
+          .json({ error: "Validation failed", issues: err.issues });
+      }
+      if (err instanceof jwt.TokenExpiredError) {
+        return res
+          .status(403)
+          .json({ error: "Token expired. Please login again." });
+      }
+      console.log(`Error - ${req.method}:${req.path} - `, err);
+      res.status(500).json({ message: err.message });
+    }
+  } else {
+    form.parse(req, async (err, fields, files) => {
+      if (err) return res.status(500).json({ error: "Image upload failed" });
+      try {
+        const userId = req.userId;
+        const product = await Product.findOne({
+          _id: req.params.id,
+          createdBy: userId,
+        });
+        let newImages = product.images;
+        if (files.images) {
+          const fileArray = Array.isArray(files.images)
+            ? files.images
+            : [files.images];
+          newImages = fileArray.map((file) => `/uploads/${file.newFilename}`);
         }
-        newImages = fileArray.map((file) => `/uploads/${file.newFilename}`);
-        // Update fields (if provided)
+        const Data = {
+          name: fields.name?.[0] ?? product.name,
+          price: fields.price?.[0] ? Number(fields.price[0]) : product.price,
+          description: fields.description?.[0] ?? product.description,
+          brand: fields.brand?.[0] ?? product.brand,
+          category: fields.category?.[0] ?? product.category,
+          status: fields.status?.[0] ?? product.status,
+          stock: fields.stock?.[0] ? Number(fields.stock[0]) : product.stock,
+          images: newImages,
+        };
+        const validatedData = productUpdateSchema.parse(Data);
 
-        product.name = fields.name?.[0] || product.name;
-        product.price = fields.price?.[0]
-          ? Number(fields.price[0])
-          : product.price;
-        product.description = fields.description?.[0] || product.description;
-        product.brand = fields.brand?.[0] || product.brand;
-        product.category = fields.category?.[0] || product.category;
-        product.status = fields.status?.[0] || product.status;
-        product.stock = fields.stock?.[0]
-          ? Number(fields.stock[0])
-          : product.stock;
-        product.images = newImages;
+        Object.assign(product, validatedData);
 
         await product.save();
-        res.json(product);
-      }
-    } catch (err) {
-      console.log("err message", err);
 
-      res.status(400).json({ message: err.message });
-    }
-  });
+        res.json({ message: "Product updated successfully", data: product });
+      } catch (err) {
+        if (err instanceof ZodError) {
+          return res
+            .status(400)
+            .json({ error: "Validation failed", issues: err.issues });
+        }
+        if (err instanceof jwt.TokenExpiredError) {
+          return res
+            .status(403)
+            .json({ error: "Token expired. Please login again." });
+        }
+        console.log(`Error - ${req.method}:${req.path} - `, err);
+        res.status(500).json({ message: err.message });
+      }
+    });
+  }
 });
 
 // NOTE: Delete The product
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, async (req, res) => {
   try {
-    const deleted = await Product.findByIdAndDelete(req.params.id);
+    const userId = req.userId;
+    const deleted = await Product.findByIdAndDelete({
+      _id: req.params.id,
+      createdBy: userId,
+    });
     if (!deleted) return res.status(404).json({ message: "Product not found" });
-    res.json({ message: "Product deleted" });
+    res.json({ message: "Product deleted", data: deleted });
   } catch (err) {
+    console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).json({ message: err.message });
   }
 });

@@ -78,6 +78,10 @@ const productSchema = new Schema(
     images: {
       type: [String],
     },
+    createdBy: {
+      type: Schema.ObjectId,
+      required: true,
+    },
   },
   {
     timestamps: true,

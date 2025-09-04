@@ -10,7 +10,7 @@ const router = Router();
 router.post("/register", async (req, res) => {
   try {
     const validatedData = RegisterSchema.parse(req.body);
-    const user = await UserModel.findOne({ email: validatedData.email });
+    const user = await User.findOne({ email: validatedData.email });
 
     if (user) {
       res.status(400).send({ message: "Email already used." });
