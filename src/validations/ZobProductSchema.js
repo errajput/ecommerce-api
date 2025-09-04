@@ -6,7 +6,7 @@ export const zodSchema = z.object(
       .min(5, "Name must be at least 5 characters")
       .max(100, "Name must be less than 100 characters"),
 
-    price: z.number().positive("Price must be greater than 0"),
+    price: z.number().min(1, "Price must be greater than or equal to 1"),
 
     description: z
       .string()
