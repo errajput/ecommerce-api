@@ -5,7 +5,10 @@ import { ZodError } from "zod";
 import Product from "../models/ProductSchema.js";
 import formidable from "formidable";
 
-import { productUpdateSchema } from "../validations/ZobProductSchema.js";
+import {
+  productUpdateSchema,
+  zodSchema,
+} from "../validations/ZobProductSchema.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = Router();
@@ -71,7 +74,7 @@ router.get("/", verifyToken, async (req, res) => {
 router.get("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const product = await Product.findById({
+    const product = await Product.findOne({
       _id: req.params.id,
       createdBy: userId,
     });
@@ -93,7 +96,7 @@ const form = formidable({
 router.post("/", verifyToken, async (req, res) => {
   if (req.headers["content-type"] === "application/json") {
     try {
-      const validatedData = productUpdateSchema.parse(req.body);
+      const validatedData = zodSchema.parse(req.body);
       const userId = req.userId;
 
       const insertProduct = await Product.insertOne({
