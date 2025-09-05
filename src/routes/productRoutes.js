@@ -15,7 +15,7 @@ import {
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = Router();
-router.use(verifyToken);
+
 // NOTE: Get All products
 
 router.get("/", async (req, res) => {
@@ -94,7 +94,7 @@ const form = formidable({
   keepExtensions: true,
 });
 
-router.post("/", async (req, res) => {
+router.post("/", verifyToken, async (req, res) => {
   if (req.headers["content-type"] === "application/json") {
     try {
       const validatedData = productAddSchema.parse(req.body);
@@ -162,7 +162,7 @@ router.post("/", async (req, res) => {
 });
 
 // NOTE: For bulk Products
-router.post("/bulk", async (req, res) => {
+router.post("/bulk", verifyToken, async (req, res) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) {
@@ -199,7 +199,7 @@ router.post("/bulk", async (req, res) => {
 });
 
 // NOTE: Update the product
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", verifyToken, async (req, res) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     try {
       const userId = req.userId;
@@ -230,7 +230,7 @@ router.patch("/:id", async (req, res) => {
       console.log(`Error - ${req.method}:${req.path} - `, err);
       res.status(500).json({ message: err.message });
     }
-  } else {
+  } else if (req.headers["content-type"]?.includes("multipart/form-data")) {
     form.parse(req, async (err, fields, files) => {
       if (err) return res.status(500).json({ error: "Image upload failed" });
       try {
@@ -281,11 +281,18 @@ router.patch("/:id", async (req, res) => {
         res.status(500).json({ message: err.message });
       }
     });
+  } else {
+    return res
+      .status(400)
+      .json({
+        error:
+          "Validation failed, Invalid Content-Type -- JSON or FormData Accepted",
+      });
   }
 });
 
 // NOTE: Delete The product
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const { id } = objectIdSchema.parse(req.params);
