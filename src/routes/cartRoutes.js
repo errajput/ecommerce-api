@@ -8,7 +8,8 @@ import {
   RemoveFromCartSchema,
   UpdateQuantitySchema,
 } from "../validations/cartValidation.js";
-import { ZodError } from "zod";
+import { jwt, ZodError } from "zod";
+import Product from "../models/ProductSchema.js";
 
 const router = Router();
 
@@ -18,6 +19,12 @@ router.use(verifyToken);
 router.post("/items", async (req, res) => {
   try {
     const validatedData = AddToCartSchema.parse(req.body);
+
+    // Check if product exists in DB
+    const productExists = await Product.findById(validatedData.product);
+    if (!productExists) {
+      return res.status(404).json({ message: "Product not found" });
+    }
     let cart = await cartModel.findOne({ user: req.userId });
 
     if (!cart) {
@@ -39,7 +46,7 @@ router.post("/items", async (req, res) => {
     if (error instanceof ZodError) {
       return res
         .status(400)
-        .json({ error: "Validation failed", errors: error.issues });
+        .json({ error: "Validation failed", issues: error.issues });
     }
     console.log(`Error - ${req.method}:${req.path} - `, error);
     return res.status(500).json({ error: error.message });
@@ -51,9 +58,11 @@ router.get("/", async (req, res) => {
     GetCartSchema.parse(req.query);
     const cart = await cartModel
       .findOne({ user: req.userId })
+
       .populate("items.product");
 
-    if (!cart) return res.json({ items: [] });
+    if (!cart || cart.items.length === 0)
+      return res.json({ cart: { items: [] } });
 
     res.json({ message: "Get cart products", cart });
   } catch (err) {
@@ -74,7 +83,7 @@ router.patch("/items/:itemId", async (req, res) => {
     const cart = await cartModel.findOne({ user: req.userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    const item = cart.items.id(itemId);
+    const item = cart.items.find((i) => i.product.toString() === itemId);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
     item.quantity = validatedData.quantity;
@@ -87,11 +96,7 @@ router.patch("/items/:itemId", async (req, res) => {
         .status(400)
         .json({ error: "Validation failed", issues: err.issues });
     }
-    if (err instanceof jwt.TokenExpiredError) {
-      return res
-        .status(403)
-        .json({ error: "Token expired. Please login again." });
-    }
+
     console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).json({ message: err.message });
   }
@@ -104,8 +109,15 @@ router.delete("/items/:itemId", async (req, res) => {
     const cart = await cartModel.findOne({ user: req.userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    cart.items = cart.items.filter((item) => item._id.toString() !== itemId);
-
+    const existingItem = cart.items.find(
+      (item) => item.product.toString() === itemId
+    );
+    if (!existingItem) {
+      return res.status(404).json({ message: "Product not found in cart" });
+    }
+    cart.items = cart.items.filter(
+      (item) => item.product.toString() !== itemId
+    );
     await cart.save();
     res.json({ message: "Deleted product.", cart });
   } catch (err) {
@@ -124,7 +136,8 @@ router.delete("/items", async (req, res) => {
     const cart = await cartModel.findOne({ user: req.userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    cart.items = [];
+    if (!cart || cart.items.length === 0)
+      return res.json({ cart: { items: [] } });
     await cart.save();
 
     res.json({ message: "Cart cleared", cart });
