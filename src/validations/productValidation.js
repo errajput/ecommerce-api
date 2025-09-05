@@ -1,5 +1,5 @@
 import { z } from "zod";
-export const zodSchema = z.object(
+export const productAddSchema = z.object(
   {
     name: z
       .string()
@@ -49,7 +49,25 @@ export const zodSchema = z.object(
     error: "Invalid data in body.",
   }
 );
-export const zodsSchema = z.array(zodSchema);
+export const productBulkSchema = z.array(productAddSchema);
 
 // Validation schema for Edit (PATCH) → all fields optional
-export const productUpdateSchema = zodSchema.partial();
+export const productUpdateSchema = productAddSchema
+  .partial()
+  .refine((data) => data.name || data.price || data.stock, {
+    message: "You must update at least one of: name, price, or stock",
+  });
+
+export const productQuerySchema = z.object({
+  search: z.string().optional(),
+  sortBy: z.enum(["name", "price", "createdAt", "category"]).optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("asc"),
+  filterBy: z.enum(["category", "brand"]).optional(),
+  filterValue: z.string().optional(),
+  pageNo: z.string().transform(Number).optional().default("1"),
+  pageSize: z.string().transform(Number).optional().default(10),
+});
+
+export const objectIdSchema = z.object({
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid product ID format"),
+});
