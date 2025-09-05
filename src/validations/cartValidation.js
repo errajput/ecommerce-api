@@ -1,8 +1,15 @@
 import { z } from "zod";
 
+export const objectId = z
+  .string()
+  .regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId");
+
 // For adding a product to cart
 export const AddToCartSchema = z.object({
-  product: z.string().min(1, "Product ID is required"),
+  product: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId")
+    .min(1, "Product ID is required"),
   quantity: z.number().int().positive().default(1),
 });
 
@@ -13,7 +20,10 @@ export const UpdateQuantitySchema = z.object({
 
 // Remove product (validate itemId param)
 export const RemoveFromCartSchema = z.object({
-  itemId: z.string().min(1, "Item ID is required"),
+  itemId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId")
+    .min(1, "Item ID is required"),
 });
 
 // Get cart (no body, but still validate query if needed)
