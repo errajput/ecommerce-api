@@ -1,22 +1,26 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import { ZodError } from "zod";
+import z, { ZodError } from "zod";
 
 import Product from "../models/ProductSchema.js";
 import formidable from "formidable";
 
 import {
   productUpdateSchema,
-  zodSchema,
-} from "../validations/ZobProductSchema.js";
+  productAddSchema,
+  productQuerySchema,
+  objectIdSchema,
+  productBulkSchema,
+} from "../validations/productValidation.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = Router();
 
 // NOTE: Get All products
 
-router.get("/", verifyToken, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const validatedQuery = productQuerySchema.parse(req.query);
     const {
       search,
       sortBy,
@@ -25,15 +29,12 @@ router.get("/", verifyToken, async (req, res) => {
       filterValue,
       pageNo,
       pageSize,
-    } = req.query;
+    } = validatedQuery;
 
     const page = parseInt(pageNo) || 1;
     const limit = parseInt(pageSize) || 10;
 
-    const userId = req.userId;
-
     const filterQuery = {
-      createdBy: userId,
       ...(search ? { name: new RegExp(search, "i") } : {}),
       ...(filterBy && filterValue ? { [filterBy]: filterValue } : {}),
     };
@@ -46,7 +47,7 @@ router.get("/", verifyToken, async (req, res) => {
       .skip(limit * (page - 1))
       .limit(limit);
     res.json({
-      message: "Success fetched.",
+      message: "Successfully get.",
       products,
       totalRecords,
       recordsReturned: products.length,
@@ -61,8 +62,8 @@ router.get("/", verifyToken, async (req, res) => {
       },
     });
   } catch (err) {
-    if (err instanceof jwt.TokenExpiredError) {
-      res.status(403).send({ error: "Token expired please login again." });
+    if (err instanceof ZodError) {
+      res.status(400).send({ error: "error.", errors: err.issues });
       return;
     }
     console.log(`Error - ${req.method}:${req.path} - `, err);
@@ -71,16 +72,16 @@ router.get("/", verifyToken, async (req, res) => {
 });
 
 // NOTE: Get Product by id
-router.get("/:id", verifyToken, async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
-    const userId = req.userId;
-    const product = await Product.findOne({
-      _id: req.params.id,
-      createdBy: userId,
-    });
+    const { id } = objectIdSchema.parse(req.params);
+    const product = await Product.findOne({ _id: id });
     if (!product) return res.status(404).json({ message: "Product not found" });
-    res.json(product);
+    res.json({ message: "Product found", data: product });
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ errors: err.issues });
+    }
     console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).json({ message: err.message });
   }
@@ -96,7 +97,7 @@ const form = formidable({
 router.post("/", verifyToken, async (req, res) => {
   if (req.headers["content-type"] === "application/json") {
     try {
-      const validatedData = zodSchema.parse(req.body);
+      const validatedData = productAddSchema.parse(req.body);
       const userId = req.userId;
 
       const insertProduct = await Product.insertOne({
@@ -150,7 +151,7 @@ router.post("/", verifyToken, async (req, res) => {
         });
       } catch (error) {
         if (error instanceof ZodError) {
-          res.status(403).send({ error: "error.", errors: error.issues });
+          res.status(403).send({ error: "error.", issues: error.issues });
           return;
         }
         console.log(`Error - ${req.method}:${req.path} - `, error);
@@ -171,8 +172,8 @@ router.post("/bulk", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "Invalid data." });
     }
 
-    const validatedProducts = products.map((product) => {
-      return productUpdateSchema.parse({
+    const validatedProducts = productBulkSchema.parse((product) => {
+      return products.map({
         ...product,
         createdBy: req.userId,
       });
@@ -185,6 +186,11 @@ router.post("/bulk", verifyToken, async (req, res) => {
       res.status(403).send({ error: "error.", errors: err.issues });
       return;
     }
+    if (err instanceof jwt.TokenExpiredError) {
+      return res
+        .status(403)
+        .json({ error: "Token expired. Please login again." });
+    }
     console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).send({ error: err.message });
   }
@@ -194,10 +200,11 @@ router.post("/bulk", verifyToken, async (req, res) => {
 router.patch("/:id", verifyToken, async (req, res) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     try {
+      const { id } = objectIdSchema.parse(req.params);
       const userId = req.userId;
       const validatedData = productUpdateSchema.parse(req.body);
       const product = await Product.findOneAndUpdate(
-        { _id: req.params.id, createdBy: userId },
+        { _id: id, createdBy: userId },
         { $set: validatedData },
         { new: true }
       );
@@ -207,7 +214,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
 
       res.json({ message: "Product updated successfully", data: product });
     } catch (err) {
-      if (err instanceof ZodError) {
+      if (err instanceof z.ZodError) {
         return res
           .status(400)
           .json({ error: "Validation failed", issues: err.issues });
@@ -217,6 +224,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
           .status(403)
           .json({ error: "Token expired. Please login again." });
       }
+
       console.log(`Error - ${req.method}:${req.path} - `, err);
       res.status(500).json({ message: err.message });
     }
@@ -254,7 +262,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
 
         res.json({ message: "Product updated successfully", data: product });
       } catch (err) {
-        if (err instanceof ZodError) {
+        if (err instanceof z.ZodError) {
           return res
             .status(400)
             .json({ error: "Validation failed", issues: err.issues });
@@ -275,13 +283,20 @@ router.patch("/:id", verifyToken, async (req, res) => {
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
+    const { id } = objectIdSchema.parse(req.params);
+
     const deleted = await Product.findByIdAndDelete({
-      _id: req.params.id,
+      _id: id,
       createdBy: userId,
     });
     if (!deleted) return res.status(404).json({ message: "Product not found" });
     res.json({ message: "Product deleted", data: deleted });
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res
+        .status(400)
+        .json({ error: "Validation failed", issues: err.issues });
+    }
     console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).json({ message: err.message });
   }
