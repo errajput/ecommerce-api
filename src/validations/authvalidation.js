@@ -13,3 +13,7 @@ export const LoginSchema = z.strictObject({
 
   password: z.string().min(3).max(100).trim(),
 });
+
+export const UpdateUserSchema = z.object({
+  name: z.string().min(3).max(100).trim(),
+});
