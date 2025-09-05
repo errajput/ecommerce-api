@@ -43,8 +43,9 @@ export const productAddSchema = z.object(
 
     images: z.array(z.string()).optional(),
     stock: z.number().positive("Price must be greater than 0"),
+
+    createdBy: z.string(),
   },
-  { createdBy: z.string() },
   {
     error: "Invalid data in body.",
   }
@@ -67,7 +68,6 @@ export const productQuerySchema = z.object({
   pageNo: z.string().transform(Number).optional().default("1"),
   pageSize: z.string().transform(Number).optional().default(10),
 });
-
 export const objectIdSchema = z.object({
-  id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid product ID format"),
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId format"),
 });
