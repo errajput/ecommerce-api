@@ -15,7 +15,7 @@ import {
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = Router();
-
+router.use(verifyToken);
 // NOTE: Get All products
 
 router.get("/", async (req, res) => {
@@ -94,7 +94,7 @@ const form = formidable({
   keepExtensions: true,
 });
 
-router.post("/", verifyToken, async (req, res) => {
+router.post("/", async (req, res) => {
   if (req.headers["content-type"] === "application/json") {
     try {
       const validatedData = productAddSchema.parse(req.body);
@@ -162,7 +162,7 @@ router.post("/", verifyToken, async (req, res) => {
 });
 
 // NOTE: For bulk Products
-router.post("/bulk", verifyToken, async (req, res) => {
+router.post("/bulk", async (req, res) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) {
@@ -172,15 +172,17 @@ router.post("/bulk", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "Invalid data." });
     }
 
-    const validatedProducts = productBulkSchema.parse((product) => {
-      return products.map({
+    const validatedProducts = productBulkSchema.parse(
+      products.map((product) => ({
         ...product,
         createdBy: req.userId,
-      });
-    });
+      }))
+    );
 
     const insertedProducts = await Product.insertMany(validatedProducts);
-    res.status(201).send({ message: "Products Inserted", insertedProducts });
+    res
+      .status(201)
+      .send({ message: "Products Inserted", data: insertedProducts });
   } catch (err) {
     if (err instanceof ZodError) {
       res.status(403).send({ error: "error.", errors: err.issues });
@@ -197,11 +199,11 @@ router.post("/bulk", verifyToken, async (req, res) => {
 });
 
 // NOTE: Update the product
-router.patch("/:id", verifyToken, async (req, res) => {
+router.patch("/:id", async (req, res) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     try {
-      const { id } = objectIdSchema.parse(req.params);
       const userId = req.userId;
+      const { id } = objectIdSchema.parse(req.params);
       const validatedData = productUpdateSchema.parse(req.body);
       const product = await Product.findOneAndUpdate(
         { _id: id, createdBy: userId },
@@ -209,7 +211,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
         { new: true }
       );
       if (!product) {
-        return res.status(404).json({ message: "Product not found " });
+        return res.status(404).json({ message: "Product not found" });
       }
 
       res.json({ message: "Product updated successfully", data: product });
@@ -237,6 +239,9 @@ router.patch("/:id", verifyToken, async (req, res) => {
           _id: req.params.id,
           createdBy: userId,
         });
+        if (!product) {
+          return res.status(404).json({ message: "Product not found" });
+        }
         let newImages = product.images;
         if (files.images) {
           const fileArray = Array.isArray(files.images)
@@ -280,7 +285,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
 });
 
 // NOTE: Delete The product
-router.delete("/:id", verifyToken, async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const userId = req.userId;
     const { id } = objectIdSchema.parse(req.params);
