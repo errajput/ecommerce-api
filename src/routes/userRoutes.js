@@ -3,11 +3,13 @@ import jwt from "jsonwebtoken";
 
 import User from "../models/UserSchema.js";
 import { verifyToken } from "../middleware/verifyToken.js";
+import { UpdateUserSchema } from "../validations/authvalidation.js";
+import { ZodError } from "zod";
 
 const router = Router();
 
 // GET /api/user
-router.get("/", verifyToken, async (req, res) => {
+router.get("/profile", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select("-password"); // exclude password
     return res.send({ message: "Successfully fetched.", data: { user } });
@@ -18,6 +20,30 @@ router.get("/", verifyToken, async (req, res) => {
     }
     console.log(`Error - ${req.method}:${req.path} - `, err);
     res.status(500).send({ errors: err.message });
+  }
+});
+
+router.patch("/profile", verifyToken, async (req, res) => {
+  try {
+    const { name } = UpdateUserSchema.parse(req.body);
+
+    const user = await User.findByIdAndUpdate(
+      req.userId, // comes from verifyToken
+      { $set: { name } },
+      { new: true }
+    ).select("-password"); // don’t send password in response
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ message: "Profile updated successfully", user });
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return res
+        .status(400)
+        .json({ error: "Validation failed", issues: err.issues });
+    }
+    console.error(`Error - ${req.method}:${req.path}`, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
