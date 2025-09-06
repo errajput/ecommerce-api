@@ -249,17 +249,18 @@ router.patch("/:id", verifyToken, async (req, res) => {
             : [files.images];
           newImages = fileArray.map((file) => `/uploads/${file.newFilename}`);
         }
-        const Data = {
-          name: fields.name?.[0] ?? product.name,
-          price: fields.price?.[0] ? Number(fields.price[0]) : product.price,
-          description: fields.description?.[0] ?? product.description,
-          brand: fields.brand?.[0] ?? product.brand,
-          category: fields.category?.[0] ?? product.category,
-          status: fields.status?.[0] ?? product.status,
-          stock: fields.stock?.[0] ? Number(fields.stock[0]) : product.stock,
+
+        const userData = {
+          name: fields.name?.[0],
+          price: fields.price?.[0],
+          description: fields.description?.[0],
+          brand: fields.brand?.[0],
+          category: fields.category?.[0],
+          status: fields.status?.[0],
+          stock: fields.stock?.[0],
           images: newImages,
         };
-        const validatedData = productUpdateSchema.parse(Data);
+        const validatedData = productUpdateSchema.parse(userData);
 
         Object.assign(product, validatedData);
 
@@ -282,12 +283,10 @@ router.patch("/:id", verifyToken, async (req, res) => {
       }
     });
   } else {
-    return res
-      .status(400)
-      .json({
-        error:
-          "Validation failed, Invalid Content-Type -- JSON or FormData Accepted",
-      });
+    return res.status(400).json({
+      error:
+        "Validation failed, Invalid Content-Type -- JSON or FormData Accepted",
+    });
   }
 });
 
