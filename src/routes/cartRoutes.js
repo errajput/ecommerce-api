@@ -83,7 +83,8 @@ router.patch("/items/:itemId", async (req, res) => {
     const cart = await cartModel.findOne({ user: req.userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    const item = cart.items.find((i) => i.product.toString() === itemId);
+    // const item = cart.items.find((i) => i.product.toString() === itemId);
+    const item = cart.items.id(itemId);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
     item.quantity = validatedData.quantity;
@@ -110,14 +111,16 @@ router.delete("/items/:itemId", async (req, res) => {
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
     const existingItem = cart.items.find(
-      (item) => item.product.toString() === itemId
+      (item) => item._id.toString() === itemId
     );
     if (!existingItem) {
       return res.status(404).json({ message: "Product not found in cart" });
     }
-    cart.items = cart.items.filter(
-      (item) => item.product.toString() !== itemId
-    );
+    // cart.items = cart.items.filter(
+    //   (item) => item.product.toString() !== itemId
+    // );
+    cart.items = cart.items.filter((i) => i._id.toString() !== itemId);
+
     await cart.save();
     res.json({ message: "Deleted product.", cart });
   } catch (err) {
@@ -137,7 +140,8 @@ router.delete("/items", async (req, res) => {
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
     if (!cart || cart.items.length === 0)
-      return res.json({ cart: { items: [] } });
+      return res.json({ cart: { items: [] }, message: "Cart already empty" });
+    cart.items = [];
     await cart.save();
 
     res.json({ message: "Cart cleared", cart });
