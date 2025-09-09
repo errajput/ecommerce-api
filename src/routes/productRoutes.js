@@ -4,6 +4,8 @@ import z, { ZodError } from "zod";
 
 import Product from "../models/ProductSchema.js";
 import formidable from "formidable";
+import fs from "fs";
+import path from "path";
 
 import {
   productUpdateSchema,
@@ -252,12 +254,12 @@ router.patch("/:id", verifyToken, async (req, res) => {
 
         const userData = {
           name: fields.name?.[0],
-          price: fields.price?.[0],
+          price: Number(fields.price?.[0] || 0),
           description: fields.description?.[0],
           brand: fields.brand?.[0],
           category: fields.category?.[0],
           status: fields.status?.[0],
-          stock: fields.stock?.[0],
+          stock: Number(fields.stock?.[0] || 0),
           images: newImages,
         };
         const validatedData = productUpdateSchema.parse(userData);
@@ -295,6 +297,30 @@ router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const { id } = objectIdSchema.parse(req.params);
+
+    const product = await Product.findOne({ _id: id, createdBy: userId });
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Delete images from uploads folder (if any)
+    if (product.images && product.images.length > 0) {
+      product.images.forEach((imgPath) => {
+        // Ensure correct file path (uploads inside /public or root)
+        const filePath = path.join(
+          process.cwd(),
+          // "public",
+          imgPath.replace(/^\//, "")
+        );
+        fs.unlink(filePath, (err) => {
+          if (err) {
+            console.error(`Failed to delete file: ${filePath}`, err.message);
+          } else {
+            console.log(`Deleted file: ${filePath}`);
+          }
+        });
+      });
+    }
 
     const deleted = await Product.findByIdAndDelete({
       _id: id,
