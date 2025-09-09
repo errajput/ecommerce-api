@@ -25,7 +25,18 @@ app.use("/products", productRoutes);
 app.use("/auth", authRoutes);
 app.use("/cart", cartRoutes);
 app.use("/orders", orderRoutes);
-
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+// Not Found -- Wild Card Routes
+app.use((req, res) => {
+  console.log("Not Found");
+  // throw Error("My Error");
+  res.status(404).send({ message: "Page Not Found" });
+});
+
+// Express Error Handling
+app.use((err, req, res, next) => {
+  res.status(500).send({ message: "My Error" });
+});
 
 app.listen(PORT, () => console.log(`App is listening on port ${PORT}`));
