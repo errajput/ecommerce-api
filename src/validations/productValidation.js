@@ -42,7 +42,7 @@ export const productAddSchema = z.object(
     status: z.enum(["active", "inactive", "out_of_stock"]).default("active"),
 
     images: z.array(z.string()).optional(),
-    stock: z.number().positive("Price must be greater than 0"),
+    stock: z.number().nonnegative("Stock cannot be negative"),
 
     createdBy: z.string(),
   },
