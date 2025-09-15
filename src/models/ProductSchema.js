@@ -24,9 +24,9 @@ const productSchema = new Schema(
       trim: true,
       required: [true, "Description is required"],
       minLength: [10, "Description must be at least 10 characters long"],
-      maxLength: [500, "Description must be less than 500 characters"],
+      maxLength: [700, "Description must be less than 500 characters"],
       match: [
-        /^[a-zA-Z0-9\s.()+,\/\-|:\n]+$/,
+        /^[a-zA-Z0-9\s.()+,\/\-|:'’\n]+$/,
         "description must not contain some special characters",
       ],
     },
@@ -82,6 +82,8 @@ const productSchema = new Schema(
       type: Schema.ObjectId,
       required: true,
     },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true,
