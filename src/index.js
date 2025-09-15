@@ -29,7 +29,7 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Not Found -- Wild Card Routes
 app.use((req, res) => {
-  console.log("Not Found");
+  console.log("Not Found", req.path, req.method);
   // throw Error("My Error");
   res.status(404).send({ message: "Page Not Found" });
 });
