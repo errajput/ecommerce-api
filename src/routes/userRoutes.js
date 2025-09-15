@@ -8,9 +8,10 @@ import { ZodError } from "zod";
 
 const router = Router();
 
-// GET /api/user
+// GET /user
 router.get("/profile", verifyToken, async (req, res) => {
   try {
+    console.log("Decoded userId:", req.userId);
     const user = await User.findById(req.userId).select("-password"); // exclude password
     return res.send({ message: "Successfully fetched.", data: { user } });
   } catch (err) {
@@ -35,7 +36,7 @@ router.patch("/profile", verifyToken, async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.json({ message: "Profile updated successfully", user });
+    res.json({ message: "Profile updated successfully", data: { user } });
   } catch (err) {
     if (err instanceof ZodError) {
       return res
