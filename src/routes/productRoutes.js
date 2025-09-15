@@ -37,6 +37,7 @@ router.get("/", async (req, res) => {
     const limit = parseInt(pageSize) || 10;
 
     const filterQuery = {
+      isDeleted: false,
       ...(search ? { name: new RegExp(search, "i") } : {}),
       ...(filterBy && filterValue ? { [filterBy]: filterValue } : {}),
     };
@@ -77,7 +78,7 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = objectIdSchema.parse(req.params);
-    const product = await Product.findOne({ _id: id });
+    const product = await Product.findOne({ _id: id, isDeleted: false });
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json({ message: "Product found", data: product });
   } catch (err) {
@@ -153,7 +154,7 @@ router.post("/", verifyToken, async (req, res) => {
         });
       } catch (error) {
         if (error instanceof ZodError) {
-          res.status(403).send({ error: "error.", issues: error.issues });
+          res.status(400).send({ error: "error.", issues: error.issues });
           return;
         }
         console.log(`Error - ${req.method}:${req.path} - `, error);
@@ -187,7 +188,7 @@ router.post("/bulk", verifyToken, async (req, res) => {
       .send({ message: "Products Inserted", data: insertedProducts });
   } catch (err) {
     if (err instanceof ZodError) {
-      res.status(403).send({ error: "error.", errors: err.issues });
+      res.status(400).send({ error: "error.", errors: err.issues });
       return;
     }
     if (err instanceof jwt.TokenExpiredError) {
@@ -292,13 +293,40 @@ router.patch("/:id", verifyToken, async (req, res) => {
   }
 });
 
+// NOTE: restore product
+router.patch("/restore/:id", verifyToken, async (req, res) => {
+  try {
+    const { id } = objectIdSchema.parse(req.params);
+
+    const product = await Product.findOneAndUpdate(
+      { _id: id, isDeleted: true },
+      { isDeleted: false, deletedAt: null },
+      { new: true }
+    );
+
+    if (!product) {
+      return res
+        .status(404)
+        .json({ message: "Product not found or not deleted" });
+    }
+
+    res.json({ message: "Product restored successfully", data: product });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // NOTE: Delete The product
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const { id } = objectIdSchema.parse(req.params);
 
-    const product = await Product.findOne({ _id: id, createdBy: userId });
+    const product = await Product.findOneAndUpdate(
+      { _id: id, createdBy: userId, isDeleted: false },
+      { isDeleted: true, deletedAt: new Date() },
+      { new: true }
+    );
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
@@ -322,12 +350,13 @@ router.delete("/:id", verifyToken, async (req, res) => {
       });
     }
 
-    const deleted = await Product.findByIdAndDelete({
-      _id: id,
-      createdBy: userId,
-    });
-    if (!deleted) return res.status(404).json({ message: "Product not found" });
-    res.json({ message: "Product deleted", data: deleted });
+    // const deleted = await Product.findByIdAndDelete({
+    //   _id: id,
+    //   createdBy: userId,
+    // });
+    // if (!deleted) return res.status(404).json({ message: "Product not found" });
+
+    res.json({ message: "Product deleted", data: product });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res
