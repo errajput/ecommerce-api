@@ -11,7 +11,7 @@ const router = Router();
 // GET /user
 router.get("/profile", verifyToken, async (req, res) => {
   try {
-    console.log("Decoded userId:", req.userId);
+    // console.log("Decoded userId:", req.userId);
     const user = await User.findById(req.userId).select("-password"); // exclude password
     return res.send({ message: "Successfully fetched.", data: { user } });
   } catch (err) {
