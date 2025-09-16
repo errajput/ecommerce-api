@@ -15,6 +15,7 @@ import {
   productBulkSchema,
 } from "../validations/productValidation.js";
 import { verifyToken } from "../middleware/verifyToken.js";
+import User from "../models/UserSchema.js";
 
 const router = Router();
 
@@ -320,6 +321,10 @@ router.patch("/restore/:id", verifyToken, async (req, res) => {
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
+    const user = await User.findOne({ _id: userId });
+    if (!user.isAdmin) {
+      throw new Error("You are not authorized for this action.");
+    }
     const { id } = objectIdSchema.parse(req.params);
 
     const product = await Product.findOneAndUpdate(
