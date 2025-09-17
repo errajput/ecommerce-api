@@ -12,8 +12,20 @@ const router = Router();
 router.get("/profile", verifyToken, async (req, res) => {
   try {
     // console.log("Decoded userId:", req.userId);
-    const user = await User.findById(req.userId).select("-password"); // exclude password
-    return res.send({ message: "Successfully fetched.", data: { user } });
+    const user = await User.findById(req.userId).select("-password");
+
+    if (!user) {
+      return res.status(404).send({ error: "User not found" });
+    }
+    return res.send({
+      message: "Successfully fetched.",
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        isSeller: user.isSeller,
+      },
+    });
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) {
       res.status(403).send({ error: "Token expired please login again." });

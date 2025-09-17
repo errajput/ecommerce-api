@@ -14,14 +14,19 @@ import {
   objectIdSchema,
   productBulkSchema,
 } from "../validations/productValidation.js";
-import { verifyToken } from "../middleware/verifyToken.js";
+import {
+  isSeller,
+  verifyToken,
+  verifyTokenWithOutError,
+} from "../middleware/verifyToken.js";
 import User from "../models/UserSchema.js";
+import cartModel from "../models/cartModel.js";
 
 const router = Router();
 
 // NOTE: Get All products
 
-router.get("/", async (req, res) => {
+router.get("/", verifyTokenWithOutError, async (req, res) => {
   try {
     const validatedQuery = productQuerySchema.parse(req.query);
     const {
@@ -50,11 +55,25 @@ router.get("/", async (req, res) => {
       )
       .skip(limit * (page - 1))
       .limit(limit);
+
+    //  Attach isInCart if user is logged in
+    let userCart = null;
+    if (req.userId) {
+      userCart = await cartModel.findOne({ user: req.userId });
+    }
+
+    const updatedProducts = products.map((p) => {
+      const isInCart = userCart
+        ? userCart.items.some((i) => i.product.toString() === p._id.toString())
+        : false;
+      return { ...p.toObject(), isInCart };
+    });
+
     res.json({
       message: "Successfully get.",
-      products,
+      products: updatedProducts,
       totalRecords,
-      recordsReturned: products.length,
+      recordsReturned: updatedProducts.length,
       query: {
         search,
         sortBy,
@@ -76,12 +95,21 @@ router.get("/", async (req, res) => {
 });
 
 // NOTE: Get Product by id
-router.get("/:id", async (req, res) => {
+router.get("/:id", verifyTokenWithOutError, async (req, res) => {
   try {
     const { id } = objectIdSchema.parse(req.params);
     const product = await Product.findOne({ _id: id, isDeleted: false });
     if (!product) return res.status(404).json({ message: "Product not found" });
-    res.json({ message: "Product found", data: product });
+    const userId = req.userId;
+    let isInCart = false;
+    if (userId) {
+      const userCart = await cartModel.findOne({ user: userId });
+      isInCart = userCart.items.some((i) => i.product.toString() === id);
+    }
+    res.json({
+      message: "Product found",
+      data: { ...product.toObject(), isInCart },
+    });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ errors: err.issues });
@@ -98,7 +126,7 @@ const form = formidable({
   keepExtensions: true,
 });
 
-router.post("/", verifyToken, async (req, res) => {
+router.post("/", verifyToken, isSeller, async (req, res) => {
   if (req.headers["content-type"] === "application/json") {
     try {
       const validatedData = productAddSchema.parse(req.body);
@@ -166,7 +194,7 @@ router.post("/", verifyToken, async (req, res) => {
 });
 
 // NOTE: For bulk Products
-router.post("/bulk", verifyToken, async (req, res) => {
+router.post("/bulk", verifyToken, isSeller, async (req, res) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) {
@@ -203,7 +231,7 @@ router.post("/bulk", verifyToken, async (req, res) => {
 });
 
 // NOTE: Update the product
-router.patch("/:id", verifyToken, async (req, res) => {
+router.patch("/:id", verifyToken, isSeller, async (req, res) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     try {
       const userId = req.userId;
@@ -295,7 +323,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
 });
 
 // NOTE: restore product
-router.patch("/restore/:id", verifyToken, async (req, res) => {
+router.patch("/restore/:id", verifyToken, isSeller, async (req, res) => {
   try {
     const { id } = objectIdSchema.parse(req.params);
 
@@ -318,11 +346,11 @@ router.patch("/restore/:id", verifyToken, async (req, res) => {
 });
 
 // NOTE: Delete The product
-router.delete("/:id", verifyToken, async (req, res) => {
+router.delete("/:id", verifyToken, isSeller, async (req, res) => {
   try {
     const userId = req.userId;
     const user = await User.findOne({ _id: userId });
-    if (!user.isAdmin) {
+    if (!user.isSeller) {
       throw new Error("You are not authorized for this action.");
     }
     const { id } = objectIdSchema.parse(req.params);
