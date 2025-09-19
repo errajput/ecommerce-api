@@ -1,7 +1,7 @@
 import { Router } from "express";
 import Order from "../models/orderModel.js";
 import cartModel from "../models/cartModel.js";
-import { verifyToken } from "../middleware/verifyToken.js";
+import { isSeller, verifyToken } from "../middleware/verifyToken.js";
 
 import { ZodError } from "zod";
 import {
@@ -34,6 +34,7 @@ router.post("/place", async (req, res) => {
         product: item.product._id,
         quantity: item.quantity,
         price: item.product.price,
+        sellerId: item.product.seller,
       })),
       totalPrice,
     });
@@ -64,8 +65,34 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 3. Update order status (Admin feature)
-router.patch("/:id/status", async (req, res) => {
+// 3. Seller: Get all orders that include this seller's products
+router.get("/seller", isSeller, async (req, res) => {
+  try {
+    const orders = await Order.find({ "items.sellerId": req.userId })
+      .populate("items.product")
+      .populate("user", "name email");
+    res.json({ orders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Get specific order
+router.get("/seller/:id", isSeller, async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      _id: req.params.id,
+      "items.sellerId": req.userId,
+    }).populate("items.product");
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    res.json({ order });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Update order status
+router.patch("/:id/status", isSeller, async (req, res) => {
   try {
     const { id } = OrderIdSchema.parse(req.params);
     const { status } = UpdateOrderStatusSchema.parse(req.body);
