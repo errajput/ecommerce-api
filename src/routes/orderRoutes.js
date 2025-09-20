@@ -53,8 +53,15 @@ router.post("/place", async (req, res) => {
 });
 
 // 2. Get all orders of logged-in user
-router.get("/", async (req, res) => {
+router.get("/", isSeller, async (req, res) => {
   try {
+    if (req.user.isSeller) {
+      const orders = await Order.find()
+        .populate("items.product")
+        .populate("user", "name email");
+      return res.json({ orders });
+    }
+
     const orders = await Order.find({ user: req.userId }).populate(
       "items.product"
     );
@@ -65,31 +72,31 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 3. Seller: Get all orders that include this seller's products
-router.get("/seller", isSeller, async (req, res) => {
-  try {
-    const orders = await Order.find({ "items.sellerId": req.userId })
-      .populate("items.product")
-      .populate("user", "name email");
-    res.json({ orders });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// // 3. Seller: Get all orders that include this seller's products
+// router.get("/seller", isSeller, async (req, res) => {
+//   try {
+//     const orders = await Order.find({ "items.sellerId": req.userId })
+//       .populate("items.product")
+//       .populate("user", "name email");
+//     res.json({ orders });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
-// 4. Get specific order
-router.get("/seller/:id", isSeller, async (req, res) => {
-  try {
-    const order = await Order.findOne({
-      _id: req.params.id,
-      "items.sellerId": req.userId,
-    }).populate("items.product");
-    if (!order) return res.status(404).json({ message: "Order not found" });
-    res.json({ order });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// // 4. Get specific order
+// router.get("/:id", isSeller, async (req, res) => {
+//   try {
+//     const order = await Order.findOne({
+//       _id: req.params.id,
+//       "items.sellerId": req.userId,
+//     }).populate("items.product");
+//     if (!order) return res.status(404).json({ message: "Order not found" });
+//     res.json({ order });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 // 5. Update order status
 router.patch("/:id/status", isSeller, async (req, res) => {

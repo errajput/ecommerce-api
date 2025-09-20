@@ -67,13 +67,13 @@ export const isSeller = async (req, res, next) => {
     }
 
     const user = await User.findById(req.userId).select("isSeller");
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    // if (!user) {
+    //   return res.status(404).json({ message: "User not found" });
+    // }
 
-    if (!user.isSeller) {
-      return res.status(403).json({ message: "Access denied: Sellers only" });
-    }
+    // if (user.isSeller) {
+    // return res.status(403).json({ message: "Access denied: Sellers only" });
+    // }
 
     req.user = user;
     next();
