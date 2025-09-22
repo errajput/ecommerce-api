@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "dev": "nodemon --env-file=.env src/index.js"
+    "dev": "nodemon --env-file=.env src/index.js",
+    "dev2": "node --env-file=.env --watch src/index.js"
   },
   "type": "module",
   "dependencies": {
