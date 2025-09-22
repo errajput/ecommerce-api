@@ -23,6 +23,7 @@ router.get("/profile", verifyToken, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        address: user.address || "",
         isSeller: user.isSeller,
       },
     });
@@ -38,24 +39,29 @@ router.get("/profile", verifyToken, async (req, res) => {
 
 router.patch("/profile", verifyToken, async (req, res) => {
   try {
-    const { name } = UpdateUserSchema.parse(req.body);
+    const { name, address } = UpdateUserSchema.parse(req.body);
 
     const user = await User.findByIdAndUpdate(
-      req.userId, // comes from verifyToken
-      { $set: { name } },
+      req.userId,
+      { $set: { name, address } },
       { new: true }
-    ).select("-password"); // don’t send password in response
+    ).select("-password");
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.json({ message: "Profile updated successfully", data: { user } });
+    // Return user directly inside data
+    res.json({
+      message: "Profile updated successfully",
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        address: user.address || "",
+        isSeller: user.isSeller,
+      },
+    });
   } catch (err) {
-    if (err instanceof ZodError) {
-      return res
-        .status(400)
-        .json({ error: "Validation failed", issues: err.issues });
-    }
-    console.error(`Error - ${req.method}:${req.path}`, err);
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
