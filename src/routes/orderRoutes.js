@@ -8,6 +8,7 @@ import {
   OrderIdSchema,
   UpdateOrderStatusSchema,
 } from "../validations/ordersValidation.js";
+import User from "../models/UserSchema.js";
 
 const router = Router();
 
@@ -16,11 +17,20 @@ router.use(verifyToken);
 // 1. Place Order
 router.post("/place", async (req, res) => {
   try {
+    // const { address } = req.body;
     const cart = await cartModel
       .findOne({ user: req.userId })
       .populate("items.product");
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({ message: "Cart is empty" });
+    }
+
+    const user = await User.findById(req.userId, "address");
+
+    if (!user.address) {
+      return res
+        .status(400)
+        .json({ message: "Please add address first in Profile." });
     }
 
     const totalPrice = cart.items.reduce(
@@ -37,6 +47,7 @@ router.post("/place", async (req, res) => {
         sellerId: item.product.seller,
       })),
       totalPrice,
+      address: user.address,
     });
 
     await newOrder.save();

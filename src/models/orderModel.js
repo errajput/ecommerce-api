@@ -18,6 +18,16 @@ const orderSchema = new mongoose.Schema({
       },
     },
   ],
+
+  address: {
+    name: String,
+    phone: String,
+    street: String,
+    city: String,
+    state: String,
+    pincode: String,
+    country: String,
+  },
   totalPrice: { type: Number, required: true },
   status: {
     type: String,

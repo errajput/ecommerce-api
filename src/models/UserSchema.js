@@ -20,7 +20,16 @@ const userSchema = new Schema(
       required: [true, "Password is required"],
       minlength: [6, "Password must be at least 6 characters"],
     },
-    address: { type: String, default: "" },
+    // address: { type: String, default: "" },
+    address: {
+      name: String,
+      phone: String,
+      street: String,
+      city: String,
+      state: String,
+      pincode: String,
+      country: String,
+    },
     isSeller: {
       type: Boolean,
       default: false,

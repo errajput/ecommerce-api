@@ -16,5 +16,13 @@ export const LoginSchema = z.strictObject({
 
 export const UpdateUserSchema = z.object({
   name: z.string().min(3).max(100).trim(),
-  address: z.string().min(3).max(100).trim(),
+  address: z.object({
+    name: z.string().min(3).max(100).trim(),
+    phone: z.string().min(3).max(100).trim(),
+    street: z.string().min(3).max(100).trim(),
+    city: z.string().min(3).max(100).trim(),
+    state: z.string().min(3).max(100).trim(),
+    pincode: z.string().min(3).max(100).trim(),
+    country: z.string().min(3).max(100).trim(),
+  }),
 });
