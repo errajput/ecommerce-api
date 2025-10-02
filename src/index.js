@@ -10,12 +10,13 @@ import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 
 const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = process.env.DB_NAME || "ecommerce-products";
 const PORT = process.env.PORT || 5000;
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-mongoose.connect(MONGODB_URI, { dbName: "ecommerce-products" });
+mongoose.connect(MONGODB_URI, { dbName: DB_NAME });
 mongoose.connection.on("connected", () => console.log("MongoDB Connected"));
 
 app.get("/", (req, res) => res.send("Ok"));
